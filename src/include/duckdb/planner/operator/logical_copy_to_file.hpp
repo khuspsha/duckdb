@@ -53,6 +53,8 @@ public:
 	bool write_partition_columns;
 	bool write_empty_file = true;
 	bool hive_file_pattern = true;
+	//! Every file this COPY writes is new (ASSUME_NEW_OUTPUT): no file's prior existence is checked
+	bool assume_new_output = false;
 	PreserveOrderType preserve_order = PreserveOrderType::AUTOMATIC;
 	vector<idx_t> partition_columns;
 	vector<BoundOrderByNode> order_columns;

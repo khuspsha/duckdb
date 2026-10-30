@@ -1,0 +1,68 @@
+# name: test/sql/copy/partitioned/copy_assume_new_output.test
+# description: ASSUME_NEW_OUTPUT: a COPY whose every output file is new skips the per-file existence check
+# group: [partitioned]
+
+# A COPY records, for each file it writes, whether the file existed before, so that a failed COPY
+# removes only the files it created.  On object storage that check is a HEAD per file.  A caller
+# that writes into a directory it just created (a distributed engine's shuffle, say) knows every file
+# is new, and says so with ASSUME_NEW_OUTPUT; the files are then treated as created by this COPY.
+
+require parquet
+
+statement ok
+CREATE TABLE t AS SELECT i AS k, i % 4 AS p, 'v' || i AS v FROM range(1000) t(i);
+
+# Partitioned, into a fresh directory.
+statement ok
+COPY t TO '{TEMP_DIR}/assume_new_partitioned' (FORMAT parquet, PARTITION_BY (p), ASSUME_NEW_OUTPUT true);
+
+query III
+SELECT count(*), count(DISTINCT p), sum(k) FROM read_parquet('{TEMP_DIR}/assume_new_partitioned/**/*.parquet', hive_partitioning = true);
+----
+1000	4	499500
+
+# With OVERWRITE_OR_IGNORE, as a shuffle writes.
+statement ok
+COPY t TO '{TEMP_DIR}/assume_new_ooi' (FORMAT parquet, PARTITION_BY (p), OVERWRITE_OR_IGNORE true, ASSUME_NEW_OUTPUT true);
+
+query I
+SELECT count(*) FROM read_parquet('{TEMP_DIR}/assume_new_ooi/**/*.parquet');
+----
+1000
+
+# A single file, and through the batch copy path.
+statement ok
+COPY t TO '{TEMP_DIR}/assume_new_single.parquet' (FORMAT parquet, ASSUME_NEW_OUTPUT true);
+
+query I
+SELECT count(*) FROM '{TEMP_DIR}/assume_new_single.parquet';
+----
+1000
+
+statement ok
+COPY (SELECT * FROM t ORDER BY k) TO '{TEMP_DIR}/assume_new_ordered.parquet' (FORMAT parquet, PRESERVE_ORDER true, ASSUME_NEW_OUTPUT true);
+
+query I
+SELECT count(*) FROM '{TEMP_DIR}/assume_new_ordered.parquet';
+----
+1000
+
+# Off by default, and false behaves as without the option.
+statement ok
+COPY t TO '{TEMP_DIR}/assume_new_off' (FORMAT parquet, PARTITION_BY (p), ASSUME_NEW_OUTPUT false);
+
+query I
+SELECT count(*) FROM read_parquet('{TEMP_DIR}/assume_new_off/**/*.parquet');
+----
+1000
+
+# APPEND adds to a directory that already holds files: the two cannot be combined.
+statement error
+COPY t TO '{TEMP_DIR}/assume_new_partitioned' (FORMAT parquet, PARTITION_BY (p), APPEND, FILENAME_PATTERN 'f_{uuid}', ASSUME_NEW_OUTPUT true);
+----
+Can't combine ASSUME_NEW_OUTPUT and APPEND
+
+# A non-boolean value is refused.
+statement error
+COPY t TO '{TEMP_DIR}/assume_new_bad' (FORMAT parquet, ASSUME_NEW_OUTPUT 'maybe');
+----

@@ -128,7 +128,7 @@ public:
 		if (initialized.load(std::memory_order_relaxed)) {
 			return;
 		}
-		output_lifecycle.RegisterFile(op.file_path);
+		output_lifecycle.RegisterFile(op.file_path, op.assume_new_output);
 		auto new_global_state = op.function.copy_to_initialize_global(context, *op.bind_data, op.file_path);
 		if (op.function.initialize_operator) {
 			op.function.initialize_operator(*new_global_state, op);

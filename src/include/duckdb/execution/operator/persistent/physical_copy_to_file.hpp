@@ -145,6 +145,8 @@ public:
 	vector<LogicalType> query_types;
 	//! Whether to write an empty file if there was no data
 	bool write_empty_file;
+	//! Every file this COPY writes is new (ASSUME_NEW_OUTPUT): no file's prior existence is checked
+	bool assume_new_output = false;
 
 	//! Partitioning-related
 	vector<idx_t> partition_columns;

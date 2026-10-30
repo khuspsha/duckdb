@@ -80,6 +80,7 @@ void LogicalCopyToFile::Serialize(Serializer &serializer) const {
 	                                                            partition_path_expression);
 	serializer.WritePropertyWithDefault(227, "query_names", query_names);
 	serializer.WritePropertyWithDefault(228, "query_types", query_types);
+	serializer.WritePropertyWithDefault(229, "assume_new_output", assume_new_output, false);
 }
 
 unique_ptr<LogicalOperator> LogicalCopyToFile::Deserialize(Deserializer &deserializer) {
@@ -139,6 +140,7 @@ unique_ptr<LogicalOperator> LogicalCopyToFile::Deserialize(Deserializer &deseria
 	                                                             partition_path_expression);
 	auto query_names = deserializer.ReadPropertyWithDefault<vector<Identifier>>(227, "query_names");
 	auto query_types = deserializer.ReadPropertyWithDefault<vector<LogicalType>>(228, "query_types");
+	auto assume_new_output = deserializer.ReadPropertyWithExplicitDefault(229, "assume_new_output", false);
 
 	if (!has_serialize) {
 		// If not serialized, re-bind with the copy info
@@ -167,6 +169,7 @@ unique_ptr<LogicalOperator> LogicalCopyToFile::Deserialize(Deserializer &deseria
 	result->return_type = return_type;
 	result->write_partition_columns = write_partition_columns;
 	result->write_empty_file = write_empty_file;
+	result->assume_new_output = assume_new_output;
 	result->preserve_order = preserve_order;
 	result->hive_file_pattern = hive_file_pattern;
 	result->file_size_bytes = file_size_bytes;

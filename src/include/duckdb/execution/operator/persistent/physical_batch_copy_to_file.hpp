@@ -37,6 +37,8 @@ public:
 	vector<Identifier> query_names;
 	vector<LogicalType> query_types;
 	bool write_empty_file;
+	//! The file this COPY writes is new (ASSUME_NEW_OUTPUT): its prior existence is not checked
+	bool assume_new_output = false;
 
 	//! Fine-grained control over writes
 	optional_idx batch_size;

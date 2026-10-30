@@ -102,6 +102,7 @@ identifier_map_t<CopyOption> Binder::GetFullCopyOptionsList(const CopyFunction &
 		copy_options["write_partition_columns"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 		copy_options["write_empty_file"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 		copy_options["hive_file_pattern"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
+		copy_options["assume_new_output"] = CopyOption(LogicalType::BOOLEAN, CopyOptionMode::WRITE_ONLY);
 	}
 	return copy_options;
 }
@@ -147,6 +148,7 @@ struct CopyToParsedOptions {
 	optional<bool> write_partition_columns;
 	optional<bool> write_empty_file;
 	optional<bool> hive_file_pattern;
+	optional<bool> assume_new_output;
 	optional<PreserveOrderType> preserve_order;
 	optional<CopyFunctionReturnType> return_type;
 	optional<bool> return_column_types;
@@ -166,6 +168,10 @@ struct CopyToParsedOptions {
 
 	bool WriteEmptyFile() const {
 		return write_empty_file.value_or(true);
+	}
+
+	bool AssumeNewOutput() const {
+		return assume_new_output.value_or(false);
 	}
 
 	bool HiveFilePattern() const {
@@ -229,6 +235,7 @@ struct CopyToResolvedOptions {
 	bool write_partition_columns = false;
 	bool write_empty_file = true;
 	bool hive_file_pattern = true;
+	bool assume_new_output = false;
 	PreserveOrderType preserve_order = PreserveOrderType::AUTOMATIC;
 	CopyFunctionReturnType return_type = CopyFunctionReturnType::CHANGED_ROWS;
 	//! Unbound, as it is bound against the partition columns
@@ -287,6 +294,7 @@ static CopyToResolvedOptions ResolveCopyToOptions(ClientContext &context, const 
 	result.write_partition_columns = options.WritePartitionColumns();
 	result.write_empty_file = options.WriteEmptyFile();
 	result.hive_file_pattern = options.HiveFilePattern();
+	result.assume_new_output = options.AssumeNewOutput();
 	result.preserve_order = options.PreserveOrder();
 	result.return_type = options.ReturnType();
 	result.partition_path = std::move(options.partition_path);
@@ -297,6 +305,9 @@ static void ValidateCopyToOptionCombinations(const CopyToParsedOptions &options,
                                              const string &format) {
 	if (options.OverwriteMode() == CopyOverwriteMode::COPY_APPEND && !options.GetFilenamePattern().HasUUID()) {
 		throw BinderException("APPEND mode requires a {uuid} label in filename_pattern");
+	}
+	if (options.AssumeNewOutput() && options.OverwriteMode() == CopyOverwriteMode::COPY_APPEND) {
+		throw BinderException("Can't combine ASSUME_NEW_OUTPUT and APPEND for COPY: APPEND adds to existing files");
 	}
 	if (options.UserSetUseTmpFile() && options.PerThreadOutput()) {
 		throw NotImplementedException("Can't combine USE_TMP_FILE and PER_THREAD_OUTPUT for COPY");
@@ -535,6 +546,8 @@ BoundStatement Binder::BindCopyTo(CopyStatement &stmt, const CopyFunction &funct
 			parsed_options.write_empty_file = GetBooleanArg(context, option_values);
 		} else if (option_name == "hive_file_pattern") {
 			parsed_options.hive_file_pattern = GetBooleanArg(context, option_values);
+		} else if (option_name == "assume_new_output") {
+			parsed_options.assume_new_output = GetBooleanArg(context, option_values);
 		} else {
 			stmt.info->options[option_name] = option_values;
 		}
@@ -630,6 +643,7 @@ BoundStatement Binder::BindCopyTo(CopyStatement &stmt, const CopyFunction &funct
 	copy->write_partition_columns = resolved_options.write_partition_columns;
 	copy->partition_columns = std::move(resolved_options.partition_cols);
 	copy->write_empty_file = resolved_options.write_empty_file;
+	copy->assume_new_output = resolved_options.assume_new_output;
 	copy->return_type = resolved_options.return_type;
 	copy->query_names = std::move(query_names);
 	copy->query_types = std::move(query_types);

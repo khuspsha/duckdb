@@ -29,7 +29,10 @@ public:
 	~CopyOutputLifecycle();
 
 public:
-	void RegisterFile(string path) DUCKDB_EXCLUDES(lock);
+	//! Records a file this COPY writes, and whether a failed COPY removes it: only a file the COPY
+	//! created is removed.  `assume_new` says the caller guarantees the file did not exist before
+	//! (ASSUME_NEW_OUTPUT), which skips the existence check -- on object storage, a HEAD per file.
+	void RegisterFile(string path, bool assume_new = false) DUCKDB_EXCLUDES(lock);
 	void RegisterCreatedDirectory(string path) DUCKDB_EXCLUDES(lock);
 	void MarkSuccessful() noexcept DUCKDB_EXCLUDES(lock);
 
